@@ -32,25 +32,33 @@ class Reasoning_Program_Generator:
         # load dataset
         with open(os.path.join(self.data_path, self.dataset_name, 'claims',
                                'gold_negate_8-shot_2-retrieved-evidence_train_gpt-3.5-turbo.jsonl'), 'r') as f:
-            raw_dataset = json.load(f)
-        
+            # 修改为逐行解析 JSONL 文件
+            raw_dataset = [json.loads(line.strip()) for line in f if line.strip()]
+
+            # 根据 num_eval_samples 决定是否截断
         raw_dataset = raw_dataset if self.args.num_eval_samples < 0 else raw_dataset[:self.args.num_eval_samples]
         print(f"Loaded {len(raw_dataset)} examples from {self.dataset_name} dev set.")
 
-        # generate programs
+        # 设置 temperature 参数
         temperature = 0.0 if self.num_programs_per_example == 1 else 0.7
-        outputs = []
-        # split dataset into chunks
+
+        # 将数据分块处理
+        batch_size = 8  # 假设 batch_size 是一个整数，可以根据需要调整
         dataset_chunks = [raw_dataset[i:i + batch_size] for i in range(0, len(raw_dataset), batch_size)]
-        
-        # initialize empty results
+
+        # 初始化结果字典
         result_dict = {}
         for idx, sample in enumerate(raw_dataset):
-            result = {'idx': idx,
-                        'claim': sample['mutated'],
-                        'gold': sample['original'],
-                        'predicted_programs': []}
+            # 构造每个样本的结果字典
+            result = {
+                'idx': idx,
+                'claim': sample.get('mutated', ''),  # 避免 KeyError，默认空字符串
+                'gold': sample.get('original', ''),  # 避免 KeyError，默认空字符串
+                'predicted_programs': []
+            }
             result_dict[idx] = result
+
+        # 将结果字典赋值给实例变量
         self.result_dict = result_dict
 
         # for each iteration
