@@ -31,7 +31,7 @@ class Reasoning_Program_Generator:
 
         # load dataset
         with open(os.path.join(self.data_path, self.dataset_name, 'claims',
-                               'gold_negate_8-shot_2-retrieved-evidence_train_gpt-3.5-turbo'), 'r') as f:
+                               'gold_negate_8-shot_2-retrieved-evidence_train_gpt-3.5-turbo.jsonl'), 'r') as f:
             raw_dataset = json.load(f)
         
         raw_dataset = raw_dataset if self.args.num_eval_samples < 0 else raw_dataset[:self.args.num_eval_samples]
