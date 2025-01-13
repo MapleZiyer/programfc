@@ -65,14 +65,14 @@ class Reasoning_Program_Generator:
                     # create output
                     for sample, output in zip(chunk, batch_outputs):
                         self.update_results(sample, output)
-                except:
+                except Exception as e:
                     # generate one by one if batch generation fails
                     for sample, full_prompt in zip(chunk, full_prompts):
                         try:
                             output = self.openai_api.generate(full_prompt, temperature)
                             self.update_results(sample, output)
                         except:
-                            print('Error in generating reasoning programs for example: ', sample['mutated'])
+                            print('Error in generating reasoning programs for example: ', e)
 
         print(f"Generated {len(result_dict)} examples.")
         # create outputs
