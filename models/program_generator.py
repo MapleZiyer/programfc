@@ -63,12 +63,17 @@ class Reasoning_Program_Generator:
             # for each chunk
             for chunk in tqdm(dataset_chunks):
                 # create prompt
+                global i
+                if i == 1:
+                    break
                 full_prompts = [self.prompt_loader.prompt_construction(example['mutated'], self.dataset_name) for example in chunk]
+                print(full_prompts)
                 try:
                     batch_outputs = self.openai_api.batch_generate(full_prompts, temperature)
                     # create output
                     for sample, output in zip(chunk, batch_outputs):
                         self.update_results(sample, output)
+                    print(self.result_dict)
                 except Exception as e:
                     # generate one by one if batch generation fails
                     for sample, full_prompt in zip(chunk, full_prompts):
