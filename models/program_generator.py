@@ -6,8 +6,6 @@ from tqdm import tqdm
 from prompts import Prompt_Loader
 from utils import OpenAIModel
 
-openai.api_base = "https://api.bianxie.ai/v1"
-
 class Reasoning_Program_Generator:
     def __init__(self, args):
         self.args = args
