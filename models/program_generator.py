@@ -6,6 +6,8 @@ from tqdm import tqdm
 from prompts import Prompt_Loader
 from utils import OpenAIModel
 
+openai.api_base = "https://api.bianxie.ai/v1"
+
 class Reasoning_Program_Generator:
     def __init__(self, args):
         self.args = args
@@ -72,7 +74,7 @@ class Reasoning_Program_Generator:
                             output = self.openai_api.generate(full_prompt, temperature)
                             self.update_results(sample, output)
                         except:
-                            print('Error in generating reasoning programs for example: ', sample['id'])
+                            print('Error in generating reasoning programs for example: ', sample['mutated'])
 
         print(f"Generated {len(result_dict)} examples.")
         # create outputs
