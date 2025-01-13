@@ -6,6 +6,8 @@ from tqdm import tqdm
 from prompts import Prompt_Loader
 from utils import OpenAIModel
 
+i = 0
+
 class Reasoning_Program_Generator:
     def __init__(self, args):
         self.args = args
@@ -21,7 +23,9 @@ class Reasoning_Program_Generator:
     def update_results(self, sample, generated_text):
         program_list = [operation.strip() for operation in generated_text.split('\n')]
         # programs = [program_list]
-        self.result_dict[sample["idx"]]['predicted_programs'].append(program_list)
+        global i
+        self.result_dict[i]['predicted_programs'].append(program_list)
+        i += 1
 
     def batch_generate_programs(self, batch_size = 10):
         # create output_dir
