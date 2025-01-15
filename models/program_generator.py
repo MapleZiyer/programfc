@@ -5,8 +5,34 @@ from tqdm import tqdm
 
 from prompts import Prompt_Loader
 from utils import OpenAIModel
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
 i = 0
+
+class CodeLlamaModel:
+    def __init__(self, model_name, max_new_tokens):
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype="auto",
+            device_map="auto"
+        )
+        self.max_new_tokens = max_new_tokens
+
+    def generate(self, prompt, temperature=0.7):
+        inputs = self.tokenizer(prompt, return_tensors="pt").to("cuda")
+        outputs = self.model.generate(
+            inputs["input_ids"],
+            max_length=self.max_new_tokens,
+            temperature=temperature,
+            top_p=0.95,
+            do_sample=True
+        )
+        return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+    def batch_generate(self, prompts, temperature=0.7):
+        # 批量生成推理程序
+        return [self.generate(prompt, temperature) for prompt in prompts]
 
 class Reasoning_Program_Generator:
     def __init__(self, args):
@@ -17,7 +43,7 @@ class Reasoning_Program_Generator:
         self.save_path = args.save_path
         self.num_programs_per_example = args.num_programs_per_example
 
-        self.openai_api = OpenAIModel(args.api_key, args.model_name, args.stop_words, args.max_new_tokens)
+        self.model = CodeLlamaModel(args.model_name, args.max_new_tokens)
         self.prompt_loader = Prompt_Loader()
 
     def update_results(self, sample, generated_text):
@@ -63,25 +89,14 @@ class Reasoning_Program_Generator:
             # for each chunk
             for chunk in tqdm(dataset_chunks):
                 # create prompt
-                global i
-                if i == 1:
-                    break
                 full_prompts = [self.prompt_loader.prompt_construction(example['mutated'], self.dataset_name) for example in chunk]
                 print(full_prompts)
                 try:
-                    batch_outputs = self.openai_api.batch_generate(full_prompts, temperature)
-                    # create output
+                    batch_outputs = self.model.batch_generate(full_prompts, temperature)
                     for sample, output in zip(chunk, batch_outputs):
-                        self.update_results(sample, output)
-                    print(self.result_dict)
+                        self.update_results(sample['idx'], sample, output)
                 except Exception as e:
-                    # generate one by one if batch generation fails
-                    for sample, full_prompt in zip(chunk, full_prompts):
-                        try:
-                            output = self.openai_api.generate(full_prompt, temperature)
-                            self.update_results(sample, output)
-                        except:
-                            print('Error in generating reasoning programs for example: ', e)
+                    print('Error in generating reasoning programs:', e)
 
         print(f"Generated {len(result_dict)} examples.")
         # create outputs
@@ -101,8 +116,7 @@ def parse_args():
     parser.add_argument('--num_eval_samples', default=-1, type=int)
     parser.add_argument('--num_programs_per_example', default=1, type=int)
     parser.add_argument('--save_path', default = './results/programs', type=str)
-    parser.add_argument('--api_key', type=str)
-    parser.add_argument('--model_name', type=str, default='text-davinci-003')
+    parser.add_argument('--model_name', type=str, default='codellama/CodeLlama-13b-hf')
     parser.add_argument('--stop_words', type=str, default='# The claim is')
     parser.add_argument('--max_new_tokens', type=int, default=1024)
     args = parser.parse_args()
