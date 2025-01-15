@@ -15,7 +15,8 @@ class CodeLlamaModel:
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype="auto",
-            device_map="auto"
+            device_map="auto",
+            force_download=True
         )
         self.max_new_tokens = max_new_tokens
 
