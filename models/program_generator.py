@@ -26,7 +26,9 @@ class CodeLlamaModel:
             max_length=self.max_new_tokens,
             temperature=temperature,
             top_p=0.95,
-            do_sample=True
+            do_sample=True,
+            attention_mask=inputs["attention_mask"],
+            pad_token_id=tokenizer.eos_token_id,
         )
         return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
@@ -68,7 +70,7 @@ class Reasoning_Program_Generator:
         print(f"Loaded {len(raw_dataset)} examples from {self.dataset_name} dev set.")
 
         # generate programs
-        temperature = 0.0 if self.num_programs_per_example == 1 else 0.7
+        temperature = 1e-5 if self.num_programs_per_example == 1 else 0.7
         outputs = []
         # split dataset into chunks
         dataset_chunks = [raw_dataset[i:i + batch_size] for i in range(0, len(raw_dataset), batch_size)]
