@@ -21,16 +21,16 @@ class CodeLlamaModel:
 
     def generate(self, prompt, temperature=0.7):
         inputs = self.tokenizer(prompt, return_tensors="pt").to("cuda")
+        print("Tokenized inputs:", inputs)
         outputs = self.model.generate(
             inputs["input_ids"],
             max_length=self.max_new_tokens,
             temperature=temperature,
             top_p=0.95,
             do_sample=True,
-            attention_mask=inputs["attention_mask"],
-            pad_token_id=self.tokenizer.eos_token_id,
+            attention_mask=inputs["attention_mask"]
         )
-        print(self.tokenizer.decode(outputs[0], skip_special_tokens=True))
+        print("Generated outputs:", outputs)
         return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
     def batch_generate(self, prompts, temperature=0.7):
@@ -120,7 +120,7 @@ def parse_args():
     parser.add_argument('--save_path', default = './results/programs', type=str)
     parser.add_argument('--model_name', type=str, default='codellama/CodeLlama-13b-hf')
     parser.add_argument('--stop_words', type=str, default='# The claim is')
-    parser.add_argument('--max_new_tokens', type=int, default=2300)
+    parser.add_argument('--max_new_tokens', type=int, default=1024)
     args = parser.parse_args()
     return args
 
