@@ -37,10 +37,12 @@ class CodeLlamaModel:
         if torch.any(torch.isnan(outputs)) or torch.any(torch.isinf(outputs)) or torch.any(outputs < 0):
             print("Generated tensor contains NaN, inf or invalid values:", outputs)
             return None
+        torch.cuda.empty_cache()
         return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
     def batch_generate(self, prompts, temperature=0.7):
         # 批量生成推理程序
+        torch.cuda.empty_cache()
         return [self.generate(prompt, temperature) for prompt in prompts]
 
 class Reasoning_Program_Generator:
@@ -105,6 +107,7 @@ class Reasoning_Program_Generator:
                         self.update_results(sample['idx'], sample, output)
                 except Exception as e:
                     print('Error in generating reasoning programs:', e)
+                torch.cuda.empty_cache()
 
         print(f"Generated {len(result_dict)} examples.")
         # create outputs
