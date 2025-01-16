@@ -64,7 +64,7 @@ def program():
 # The claim is that Jack McFarland is the best known role of the host of the 64th Annual Tony Awards.
 def program():
     answer_1 = Question("Who is the host of the 64th Annual Tony Awards?")
-    fact_1 = Verify(f\"Jack McFarland is the best known role of {answer_1}.)
+    fact_1 = Verify(f"Jack McFarland is the best known role of {answer_1}".)
     label = Predict(fact_1)
 
 # The claim is that The song recorded by Fergie that was produced by Polow da Don and was followed by Life Goes On was M.I.L.F.$.
@@ -85,32 +85,6 @@ def program():
     fact_1 = Verify("Gregg Rolie is not a keyboardist.")
     fact_2 = Verify("Rob Tyner is not a keyboardist.")
     label = Predict(fact_1 and fact_2)
-
-# The claim is that Maria Esther Andion Bueno, not Jimmy Connors, is the player that is from Brazil.
-def program():
-    fact_1 = Verify("Maria Esther Andion Bueno is from Brazil.")
-    fact_2 = Verify("Jimmy Connors is not from Brazil.")
-    label = Predict(fact_1 and fact_2)
-
-# The claim is that Vladimir Igorevich Arnold died after Georg Cantor.
-def program():
-    answer_1 = Question("When did Vladimir Igorevich Arnold die?")
-    answer_2 = Question("When did Georg Cantor die?")
-    fact_1 = Verify(f"{answer_1} is after {answer_2}.")
-    label = Predict(fact_1)
-
-# The claim is that Barton Mine was halted by a natural disaster not Camlaren Mine.
-def program():
-    fact_1 = Verify("Barton Mine was halted by a natural disaster.")
-    fact_2 = Verify("Camlaren Mine was not halted by a natural disaster.")
-    label = Predict(fact_1 and fact_2)
-
-# The claim is that John O'Hara and Rabindranath Tagore are not the same nationality.
-def program():
-    answer_1 = Question("What is the nationality of John O'Hara?")
-    answer_2 = Question("What is the nationality of Rabindranath Tagore?")
-    fact_1 = Verify(f"{answer_1} and {answer_2} are not the same nationality.")
-    label = Predict(fact_1)
 
 # The claim is that [[CLAIM]]
 def program():'''
