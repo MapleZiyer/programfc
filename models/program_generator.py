@@ -15,8 +15,7 @@ class CodeLlamaModel:
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype="auto",
-            device_map="auto",
-            force_download=True
+            device_map="auto"
         )
         self.max_new_tokens = max_new_tokens
 
@@ -106,6 +105,8 @@ class Reasoning_Program_Generator:
         sorted_outputs = sorted(outputs, key=lambda x: x['idx'])
 
         # save outputs
+        directory = os.path.join(self.save_path, f'{self.dataset_name}_N={self.num_programs_per_example}_{self.model_name}_programs.json')
+        os.makedirs(directory, exist_ok=True)
         with open(os.path.join(self.save_path, f'{self.dataset_name}_N={self.num_programs_per_example}_{self.model_name}_programs.json'), 'w') as f:
             json.dump(sorted_outputs, f, indent=2, ensure_ascii=False)
 
