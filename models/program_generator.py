@@ -21,6 +21,8 @@ class CodeLlamaModel:
 
     def generate(self, prompt, temperature=0.7):
         inputs = self.tokenizer(prompt, return_tensors="pt").to("cuda")
+        if torch.any(torch.isnan(input_ids)) or torch.any(torch.isinf(input_ids)):
+            print("Input tensor contains NaN or Inf values.")
         print("Tokenized inputs:", inputs)
         outputs = self.model.generate(
             inputs["input_ids"],

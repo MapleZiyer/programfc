@@ -112,21 +112,6 @@ def program():
     fact_1 = Verify(f"{answer_1} and {answer_2} are not the same nationality.")
     label = Predict(fact_1)
 
-# The claim is that Thomas Loren Friedman has won more Pulitzer Prizes than Colson Whitehead.
-def program():
-    answer_1 = Question("How many Pulitzer Prizes has Thomas Loren Friedman won?")
-    answer_2 = Question("How many Pulitzer Prizes has Colson Whitehead won?")
-    fact_1 = Verify(f"{answer_1} is more than {answer_2}.")
-    label = Predict(fact_1)
-
-# The claim is that The model of car Trevor Bayne drives was introduced for model year 2006. The Rookie of The Year in the 1997 CART season drives it in the NASCAR Sprint Cup.
-def program():
-    answer_1 = Question("Which model of car is drived by Trevor Bayne?")
-    fact_1 = Verify(f"{answer_1} was introduced for model year 2006.")
-    answer_2 = Question("Who is the Rookie of The Year in the 1997 CART season?")
-    fact_2 = Verify(f"{answer_2} drives the model of car Trevor Bayne drives in the NASCAR Sprint Cup.")
-    label = predict(fact_1 and fact_2)
-
 # The claim is that [[CLAIM]]
 def program():'''
 
