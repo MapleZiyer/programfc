@@ -28,7 +28,7 @@ class CodeLlamaModel:
             top_p=0.95,
             do_sample=True,
             attention_mask=inputs["attention_mask"],
-            pad_token_id=tokenizer.eos_token_id,
+            pad_token_id=self.tokenizer.eos_token_id,
         )
         return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
