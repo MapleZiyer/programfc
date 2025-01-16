@@ -21,10 +21,9 @@ class CodeLlamaModel:
 
     def generate(self, prompt, temperature=0.7):
         inputs = self.tokenizer(prompt, return_tensors="pt").to("cuda")
-        print("Tokenized inputs:", inputs["input_ids"])
-        if torch.any(torch.isnan(inputs["input_ids"])) or torch.any(torch.isinf(inputs["input_ids"])):
-            print("Input contains NaN or inf values:", inputs)
-            return None
+        print("Data type of input IDs:", inputs["input_ids"].dtype)
+        print("Minimum value in input IDs:", inputs["input_ids"].min().item())
+        print("Maximum value in input IDs:", inputs["input_ids"].max().item())
         outputs = self.model.generate(
             inputs["input_ids"],
             max_new_tokens=300,
@@ -79,7 +78,7 @@ class Reasoning_Program_Generator:
         print(f"Loaded {len(raw_dataset)} examples from {self.dataset_name} dev set.")
 
         # generate programs
-        temperature = 1e-5 if self.num_programs_per_example == 1 else 0.7
+        temperature = 0.1 if self.num_programs_per_example == 1 else 0.7
         outputs = []
         # split dataset into chunks
         dataset_chunks = [raw_dataset[i:i + batch_size] for i in range(0, len(raw_dataset), batch_size)]
