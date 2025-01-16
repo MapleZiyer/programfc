@@ -105,8 +105,6 @@ class Reasoning_Program_Generator:
         sorted_outputs = sorted(outputs, key=lambda x: x['idx'])
 
         # save outputs
-        directory = os.path.join(self.save_path, f'{self.dataset_name}_N={self.num_programs_per_example}_{self.model_name}_programs.json')
-        os.makedirs(directory, exist_ok=True)
         with open(os.path.join(self.save_path, f'{self.dataset_name}_N={self.num_programs_per_example}_{self.model_name}_programs.json'), 'w') as f:
             json.dump(sorted_outputs, f, indent=2, ensure_ascii=False)
 
@@ -120,7 +118,7 @@ def parse_args():
     parser.add_argument('--save_path', default = './results/programs', type=str)
     parser.add_argument('--model_name', type=str, default='codellama/CodeLlama-13b-hf')
     parser.add_argument('--stop_words', type=str, default='# The claim is')
-    parser.add_argument('--max_new_tokens', type=int, default=1024)
+    parser.add_argument('--max_new_tokens', type=int, default=3000)
     args = parser.parse_args()
     return args
 
