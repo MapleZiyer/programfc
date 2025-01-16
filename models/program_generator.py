@@ -30,6 +30,7 @@ class CodeLlamaModel:
             attention_mask=inputs["attention_mask"],
             pad_token_id=self.tokenizer.eos_token_id,
         )
+        print(self.tokenizer.decode(outputs[0], skip_special_tokens=True))
         return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
     def batch_generate(self, prompts, temperature=0.7):
@@ -92,7 +93,6 @@ class Reasoning_Program_Generator:
             for chunk in tqdm(dataset_chunks):
                 # create prompt
                 full_prompts = [self.prompt_loader.prompt_construction(example['mutated'], self.dataset_name) for example in chunk]
-                print(full_prompts)
                 try:
                     batch_outputs = self.model.batch_generate(full_prompts, temperature)
                     for sample, output in zip(chunk, batch_outputs):
@@ -120,7 +120,7 @@ def parse_args():
     parser.add_argument('--save_path', default = './results/programs', type=str)
     parser.add_argument('--model_name', type=str, default='codellama/CodeLlama-13b-hf')
     parser.add_argument('--stop_words', type=str, default='# The claim is')
-    parser.add_argument('--max_new_tokens', type=int, default=3000)
+    parser.add_argument('--max_new_tokens', type=int, default=2300)
     args = parser.parse_args()
     return args
 
