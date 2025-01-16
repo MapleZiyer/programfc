@@ -21,8 +21,8 @@ class CodeLlamaModel:
 
     def generate(self, prompt, temperature=0.7):
         inputs = self.tokenizer(prompt, return_tensors="pt").to("cuda")
-        if torch.any(outputs < 0) or torch.any(torch.isnan(outputs)):
-            print("Generated tensor contains invalid values:", outputs)
+        if torch.any(torch.isnan(input_ids)) or torch.any(torch.isinf(input_ids)):
+            raise ValueError("Input tensor contains NaN or Inf values.")
         print("Tokenized inputs:", inputs)
         outputs = self.model.generate(
             inputs["input_ids"],
@@ -32,6 +32,8 @@ class CodeLlamaModel:
             do_sample=True,
             attention_mask=inputs["attention_mask"]
         )
+        if torch.any(outputs < 0) or torch.any(torch.isnan(outputs)):
+            print("Generated tensor contains invalid values:", outputs)
         print("Generated outputs:", outputs)
         return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
