@@ -24,7 +24,7 @@ class CodeLlamaModel:
         print("Tokenized inputs:", inputs)
         outputs = self.model.generate(
             inputs["input_ids"],
-            max_length=self.max_new_tokens,
+            max_new_tokens=300,
             temperature=temperature,
             top_p=0.95,
             do_sample=True,
@@ -117,7 +117,7 @@ def parse_args():
     parser.add_argument('--data_path', type=str)
     parser.add_argument('--num_eval_samples', default=-1, type=int)
     parser.add_argument('--num_programs_per_example', default=1, type=int)
-    parser.add_argument('--save_path', default = './results/programs', type=str)
+    parser.add_argument('--save_path', default='./results/programs', type=str)
     parser.add_argument('--model_name', type=str, default='codellama/CodeLlama-13b-hf')
     parser.add_argument('--stop_words', type=str, default='# The claim is')
     parser.add_argument('--max_new_tokens', type=int, default=1024)
