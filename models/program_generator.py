@@ -43,14 +43,15 @@ def process_file(input_file, output_file, dataset_name="HOVER"):
 
                 # 构造Prompt
                 prompt = prompt_loader.prompt_construction(claim, dataset_name)
+                print(f"Model loaded on device: {model.device}")
 
                 # Tokenize输入
-                inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(model.device)
+                inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=3000).to(model.device)
 
                 # 模型生成
                 outputs = model.generate(
                     **inputs,
-                    max_length=4096,
+                    max_length=3000,
                     temperature=0.2,
                     top_p=0.9,
                     do_sample=True,
