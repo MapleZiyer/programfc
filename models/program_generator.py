@@ -60,6 +60,7 @@ def process_file(input_file, output_file, dataset_name="HOVER"):
 
                 # 解码生成结果
                 generated_code = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                print("Output:")
                 print(generated_code)
 
                 # 保存结果
