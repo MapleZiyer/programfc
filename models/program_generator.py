@@ -16,6 +16,20 @@ model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
 input_file_path = "./datasets/HOVER/claims/gold_negate_8-shot_2-retrieved-evidence_train_gpt-3.5-turbo.jsonl"  # 替换为你的输入文件路径
 output_file_path = "./results/programs/output_results.json"  # 替换为你的输出文件路径
 
+def remove_repeated_lines(generated_text):
+    """
+    移除生成文本中的重复行
+    """
+    lines = generated_text.split("\n")
+    seen = set()
+    result = []
+    for line in lines:
+        if line not in seen:  # 如果当前行没有出现过
+            seen.add(line)
+            result.append(line)
+    return "\n".join(result)
+
+
 def process_file(input_file, output_file, dataset_name="HOVER"):
     """
     从输入文件读取信息，生成prompt，调用模型，保存结果。
@@ -46,7 +60,7 @@ def process_file(input_file, output_file, dataset_name="HOVER"):
                 print(f"Model loaded on device: {model.device}")
 
                 # Tokenize输入
-                inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048).to(model.device)
+                inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1500).to(model.device)
 
                 print("Input:")
                 print(prompt)
@@ -54,7 +68,7 @@ def process_file(input_file, output_file, dataset_name="HOVER"):
                 # 模型生成
                 outputs = model.generate(
                     **inputs,
-                    max_length=2048,
+                    max_length=1500,
                     temperature=0.2,
                     top_p=0.9,
                     do_sample=True,
@@ -63,6 +77,7 @@ def process_file(input_file, output_file, dataset_name="HOVER"):
 
                 # 解码生成结果
                 generated_code = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                generated_code = remove_repeated_lines(generated_code)
                 print("Output:")
                 print(generated_code)
 
