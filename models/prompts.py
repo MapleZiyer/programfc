@@ -5,10 +5,11 @@ You can use three functions in the program:
 2. `Verify()`: To verify a single fact or claim.
 3. `Predict()`: To predict the veracity label based on verified facts.
 
-**Rules**:
+Rules:
 - Each program must only answer the specific claim provided.
 - Avoid any repeated or redundant lines in the output.
 - The program must be concise and contain only the necessary steps to verify the claim.
+- Stop after providing the required program. Do not generate additional programs or repeat the process.
 
 **Examples**:
 # Example 1
@@ -63,10 +64,7 @@ def program():
     
 # New Question:
 # The claim is that [[CLAIM]]
-def program():
-
-#Stop after replying last question
-'''
+def program():'''
 
 FEVEROUS_PROGRAM_FC = '''Generate a python-like program that describes the reasoning steps required to verify the claim step-by-step. You can call three functions in the program: 1. Question() to answer a question; 2. Verify() to verify a simple claim; 3. Predict() to predict the veracity label. Several examples are given as follows.
 
