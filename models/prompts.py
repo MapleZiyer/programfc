@@ -6,24 +6,6 @@ def program():
     fact_2 = Verify("Providence Hospital is located in Washington, D.C.")
     label = Predict(fact_1 and fact_2)
 
-# The claim is that WWE Super Tuesday took place at an arena that currently goes by the name TD Garden.
-def program():
-    answer_1 = Question("Which arena the WWE Super Tuesday took place?")
-    fact_1 = Verify(f"{answer_1} currently goes by the name TD Garden.")
-    label = Predict(fact_1)
-
-# The claim is that Talking Heads, an American rock band that was "one of the most critically acclaimed bands of the 80's" is featured in KSPN's AAA format.
-def program():
-    fact_1 = Verify("Talking Heads is an American rock band that was 'one of the most critically acclaimed bands of the 80's'.")
-    fact_2 = Verify("Talking Heads is featured in KSPN's AAA format.")
-    label = Predict(fact_1 and fact_2)
-
-# The claim is that An IndyCar race driver drove a Formula 1 car designed by Peter McCool during the 2007 Formula One season.
-def program():
-    answer_1 = Question("Which Formula 1 car was designed by Peter McCool during the 2007 Formula One season?")
-    fact_1 = Verify(f"An IndyCar race driver drove the car {answer_1}.")
-    label = Predict(fact_1)
-
 # The claim is that [[CLAIM]]
 def program():'''
 
