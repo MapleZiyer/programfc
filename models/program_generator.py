@@ -3,7 +3,7 @@ import os
 import json
 from tqdm import tqdm
 import torch
-from prompts import PromptLoader
+from prompts import Prompt_Loader
 from utils import OpenAIModel
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
