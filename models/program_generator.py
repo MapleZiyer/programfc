@@ -3,11 +3,9 @@ import os
 import json
 from tqdm import tqdm
 import torch
-from prompts import Prompt_Loader
+from prompts import PromptLoader
 from utils import OpenAIModel
 from transformers import AutoTokenizer, AutoModelForCausalLM
-
-i = 0
 
 class CodeLlamaModel:
     def __init__(self, model_name, max_new_tokens):
@@ -21,118 +19,94 @@ class CodeLlamaModel:
 
     def generate(self, prompt, temperature=0.7):
         inputs = self.tokenizer(prompt, return_tensors="pt").to("cuda")
-        print("Data type of input IDs:", inputs["input_ids"].dtype)
-        print("Minimum value in input IDs:", inputs["input_ids"].min().item())
-        print("Maximum value in input IDs:", inputs["input_ids"].max().item())
         outputs = self.model.generate(
             inputs["input_ids"],
-            max_new_tokens=300,
+            max_new_tokens=self.max_new_tokens,
             temperature=temperature,
             top_p=0.95,
             do_sample=True,
             attention_mask=inputs["attention_mask"]
         )
-        print("Generated outputs:", outputs)
-        if torch.any(torch.isnan(outputs)) or torch.any(torch.isinf(outputs)) or torch.any(outputs < 0):
-            print("Generated tensor contains NaN, inf or invalid values:", outputs)
-            return None
         torch.cuda.empty_cache()
         return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
     def batch_generate(self, prompts, temperature=0.7):
-        # 批量生成推理程序
-        torch.cuda.empty_cache()
         return [self.generate(prompt, temperature) for prompt in prompts]
 
-class Reasoning_Program_Generator:
+class ReasoningProgramGenerator:
     def __init__(self, args):
         self.args = args
         self.data_path = args.data_path
         self.dataset_name = args.dataset_name
-        self.model_name = args.model_name
         self.save_path = args.save_path
         self.num_programs_per_example = args.num_programs_per_example
 
         self.model = CodeLlamaModel(args.model_name, args.max_new_tokens)
-        self.prompt_loader = Prompt_Loader()
+        self.prompt_loader = PromptLoader()
+        self.result_dict = {}
 
-    def update_results(self, sample, generated_text):
-        program_list = [operation.strip() for operation in generated_text.split('\n')]
-        # programs = [program_list]
-        global i
-        self.result_dict[i]['predicted_programs'].append(program_list)
-        i += 1
+    def update_results(self, idx, generated_text):
+        program_list = [line.strip() for line in generated_text.split('\n')]
+        self.result_dict[idx]['predicted_programs'].append(program_list)
 
-    def batch_generate_programs(self, batch_size = 10):
-        # create output_dir
-        self.result_dict = []
-        if not os.path.exists(self.save_path):
-            os.makedirs(self.save_path)
-
-        # load dataset
-        with open(os.path.join(self.data_path, self.dataset_name, 'claims',
-                               'gold_negate_8-shot_2-retrieved-evidence_train_gpt-3.5-turbo.jsonl'), 'r') as f:
+    def load_dataset(self):
+        dataset_file = os.path.join(self.data_path, self.dataset_name, 'claims',
+                                    'gold_negate_8-shot_2-retrieved-evidence_train_gpt-3.5-turbo.jsonl')
+        with open(dataset_file, 'r') as f:
             raw_dataset = [json.loads(line.strip()) for line in f if line.strip()]
 
-        raw_dataset = raw_dataset if self.args.num_eval_samples < 0 else raw_dataset[:self.args.num_eval_samples]
-        print(f"Loaded {len(raw_dataset)} examples from {self.dataset_name} dev set.")
+        if self.args.num_eval_samples > 0:
+            raw_dataset = raw_dataset[:self.args.num_eval_samples]
+        print(f"Loaded {len(raw_dataset)} examples from {self.dataset_name}.")
+        return raw_dataset
 
-        # generate programs
-        temperature = 0.1 if self.num_programs_per_example == 1 else 0.7
-        outputs = []
-        # split dataset into chunks
+    def batch_generate_programs(self, batch_size=10):
+        os.makedirs(self.save_path, exist_ok=True)
+
+        raw_dataset = self.load_dataset()
         dataset_chunks = [raw_dataset[i:i + batch_size] for i in range(0, len(raw_dataset), batch_size)]
 
-        # initialize empty results
-        result_dict = {}
-        for idx, sample in enumerate(raw_dataset):
-            result = {'idx': idx,
-                        'claim': sample['mutated'],
-                        'gold': sample['original'],
-                        'predicted_programs': []}
-            result_dict[idx] = result
-        self.result_dict = result_dict
+        self.result_dict = {
+            idx: {
+                'idx': idx,
+                'claim': sample['mutated'],
+                'gold': sample['original'],
+                'predicted_programs': []
+            } for idx, sample in enumerate(raw_dataset)
+        }
 
-        # for each iteration
+        temperature = 0.1 if self.num_programs_per_example == 1 else 0.7
+
         for iteration in range(self.num_programs_per_example):
             print(f"Generating programs for iteration {iteration + 1}...")
-            # for each chunk
             for chunk in tqdm(dataset_chunks):
-                # create prompt
-                full_prompts = [self.prompt_loader.prompt_construction(example['mutated'], self.dataset_name) for example in chunk]
+                full_prompts = [self.prompt_loader.construct_prompt(example['mutated'], self.dataset_name) for example in chunk]
                 try:
                     batch_outputs = self.model.batch_generate(full_prompts, temperature)
-                    for sample, output in zip(chunk, batch_outputs):
-                        self.update_results(sample['idx'], sample, output)
+                    for example, output in zip(chunk, batch_outputs):
+                        self.update_results(example['idx'], output)
                 except Exception as e:
-                    print('Error in generating reasoning programs:', e)
+                    print(f"Error in generating reasoning programs: {e}")
                 torch.cuda.empty_cache()
 
-        print(f"Generated {len(result_dict)} examples.")
-        # create outputs
-        for key in result_dict:
-            outputs.append(result_dict[key])
-        sorted_outputs = sorted(outputs, key=lambda x: x['idx'])
-
-        # save outputs
-        with open(os.path.join(self.save_path, f'{self.dataset_name}_N={self.num_programs_per_example}_{self.model_name}_programs.json'), 'w') as f:
+        sorted_outputs = sorted(self.result_dict.values(), key=lambda x: x['idx'])
+        output_file = os.path.join(self.save_path, f'{self.dataset_name}_N={self.num_programs_per_example}_{self.args.model_name}_programs.json')
+        with open(output_file, 'w') as f:
             json.dump(sorted_outputs, f, indent=2, ensure_ascii=False)
+        print(f"Saved generated programs to {output_file}")
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    # dataset args
     parser.add_argument('--dataset_name', default='HOVER', type=str)
-    parser.add_argument('--data_path', type=str)
+    parser.add_argument('--data_path', type=str, required=True)
     parser.add_argument('--num_eval_samples', default=-1, type=int)
     parser.add_argument('--num_programs_per_example', default=1, type=int)
     parser.add_argument('--save_path', default='./results/programs', type=str)
     parser.add_argument('--model_name', type=str, default='codellama/CodeLlama-13b-hf')
-    parser.add_argument('--stop_words', type=str, default='# The claim is')
     parser.add_argument('--max_new_tokens', type=int, default=1024)
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse_args()
-    generator = Reasoning_Program_Generator(args)
+    generator = ReasoningProgramGenerator(args)
     generator.batch_generate_programs()
