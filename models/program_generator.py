@@ -16,18 +16,26 @@ model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
 input_file_path = "./datasets/HOVER/claims/gold_negate_8-shot_2-retrieved-evidence_train_gpt-3.5-turbo.jsonl"  # 替换为你的输入文件路径
 output_file_path = "./results/programs/output_results.json"  # 替换为你的输出文件路径
 
-def remove_repeated_lines(generated_text):
+def extract_first_program(data):
     """
-    移除生成文本中的重复行
+    提取第一个 'New Question:' 后面紧跟的 'def program():' 块内容。
     """
-    lines = generated_text.split("\n")
-    seen = set()
+    lines = data.splitlines()
     result = []
+    start_extracting = False
+
     for line in lines:
-        if line not in seen:  # 如果当前行没有出现过
-            seen.add(line)
+        if "New Question:" in line:
+            start_extracting = True  # 开始提取
+            result = []  # 清空，确保只保留第一个块
+        if start_extracting:
             result.append(line)
-    return "\n".join(result)
+            # 检查是否到了块结束的地方
+            if line.strip() == "" and len(result) > 1:  # 空行标志结束
+                break
+
+    # 只返回内容部分，去掉多余的空行
+    return "\n".join(line for line in result if line.strip())
 
 
 def process_file(input_file, output_file, dataset_name="HOVER"):
@@ -77,7 +85,7 @@ def process_file(input_file, output_file, dataset_name="HOVER"):
 
                 # 解码生成结果
                 generated_code = tokenizer.decode(outputs[0], skip_special_tokens=True)
-                generated_code = remove_repeated_lines(generated_code)
+                generated_code = extract_latest_program(generated_code)
                 print("Output:")
                 print(generated_code)
 
