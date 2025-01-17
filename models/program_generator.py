@@ -1,119 +1,70 @@
-import argparse
-import os
 import json
-from tqdm import tqdm
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from prompts import Prompt_Loader
+from tqdm import tqdm
 
+# 加载Prompt构造器
+prompt_loader = Prompt_Loader()
 
-class CodeLlamaModel:
-    def __init__(self, model_name, max_new_tokens):
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype="auto",
-            device_map="auto"
-        )
-        self.max_new_tokens = max_new_tokens
+# 模型及tokenizer加载
+model_name = "codellama/CodeLlama-13b-hf"
+print("Loading model and tokenizer...")
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
 
-    def generate(self, prompt, temperature=0.7):
-        inputs = self.tokenizer(prompt, return_tensors="pt").to("cuda")
-        outputs = self.model.generate(
-            inputs["input_ids"],
-            max_new_tokens=self.max_new_tokens,
-            temperature=temperature,
-            top_p=0.95,
-            do_sample=True,
-            attention_mask=inputs["attention_mask"]
-        )
-        torch.cuda.empty_cache()
-        return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+# 数据文件路径
+input_file_path = "./datasets/HOVER/claims/gold_negate_8-shot_2-retrieved-evidence_train_gpt-3.5-turbo.jsonl"  # 替换为你的输入文件路径
+output_file_path = "./results/programs/output_results.json"  # 替换为你的输出文件路径
 
-    def batch_generate(self, prompts, temperature=0.7):
-        return [self.generate(prompt, temperature) for prompt in prompts]
+def process_file(input_file, output_file, dataset_name="HOVER"):
+    """
+    从输入文件读取信息，生成prompt，调用模型，保存结果。
+    :param input_file: 输入文件路径
+    :param output_file: 输出文件路径
+    :param dataset_name: 数据集名称 (HOVER 或 FEVEROUS)
+    """
+    results = []
 
+    # 逐行处理输入文件
+    with open(input_file, "r", encoding="utf-8") as infile:
+        # 使用tqdm显示进度条
+        for line in tqdm(infile, desc="Processing claims"):
+            try:
+                # 解析JSON数据
+                data = json.loads(line.strip())
+                claim = data.get("mutated", "")
 
-class ReasoningProgramGenerator:
-    def __init__(self, args):
-        self.args = args
-        self.data_path = args.data_path
-        self.dataset_name = args.dataset_name
-        self.save_path = args.save_path
-        self.num_programs_per_example = args.num_programs_per_example
+                # 构造Prompt
+                prompt = prompt_loader.prompt_construction(claim, dataset_name)
 
-        self.model = CodeLlamaModel(args.model_name, args.max_new_tokens)
-        self.prompt_loader = Prompt_Loader()
-        self.result_dict = {}
+                # Tokenize输入
+                inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 
-    def update_results(self, idx, generated_text):
-        """Update the result dictionary with the generated text."""
-        program_list = [line.strip() for line in generated_text.split('\n') if line.strip()]
-        self.result_dict[idx]['predicted_programs'].append(program_list)
+                # 模型生成
+                outputs = model.generate(
+                    **inputs,
+                    max_length=512,
+                    temperature=0.7,
+                    top_p=0.9,
+                    do_sample=True
+                )
 
-    def load_dataset(self):
-        """Load dataset from the specified path."""
-        dataset_file = os.path.join(self.data_path, self.dataset_name, 'claims',
-                                    'gold_negate_8-shot_2-retrieved-evidence_train_gpt-3.5-turbo.jsonl')
-        with open(dataset_file, 'r') as f:
-            raw_dataset = [json.loads(line.strip()) for line in f if line.strip()]
+                # 解码生成结果
+                generated_code = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-        if self.args.num_eval_samples > 0:
-            raw_dataset = raw_dataset[:self.args.num_eval_samples]
-        print(f"Loaded {len(raw_dataset)} examples from {self.dataset_name}.")
-        return raw_dataset
+                # 保存结果
+                results.append({
+                    "claim": claim,
+                    "generated_code": generated_code
+                })
 
-    def batch_generate_programs(self, batch_size=10):
-        """Generate reasoning programs in batches."""
-        os.makedirs(self.save_path, exist_ok=True)
+            except Exception as e:
+                print(f"Error processing line: {e}")
 
-        raw_dataset = self.load_dataset()
-        dataset_chunks = [raw_dataset[i:i + batch_size] for i in range(0, len(raw_dataset), batch_size)]
+    # 保存结果到输出文件
+    with open(output_file, "w", encoding="utf-8") as outfile:
+        json.dump(results, outfile, ensure_ascii=False, indent=4)
 
-        self.result_dict = {
-            idx: {
-                'idx': idx,
-                'claim': sample['mutated'],
-                'gold': sample['original'],
-                'predicted_programs': []
-            } for idx, sample in enumerate(raw_dataset)
-        }
-
-        temperature = 0.1 if self.num_programs_per_example == 1 else 0.7
-
-        for iteration in range(self.num_programs_per_example):
-            print(f"Generating programs for iteration {iteration + 1}...")
-            for chunk in tqdm(dataset_chunks):
-                full_prompts = [self.prompt_loader.prompt_construction(example['mutated'], self.dataset_name) for example in chunk]
-                try:
-                    batch_outputs = self.model.batch_generate(full_prompts, temperature)
-                    for example, output in zip(chunk, batch_outputs):
-                        self.update_results(example['idx'], output)
-                except Exception as e:
-                    print(f"Error in generating reasoning programs: {e}")
-                torch.cuda.empty_cache()
-
-        sorted_outputs = sorted(self.result_dict.values(), key=lambda x: x['idx'])
-        output_file = os.path.join(self.save_path, f'{self.dataset_name}_N={self.num_programs_per_example}_{self.args.model_name}_programs.json')
-        with open(output_file, 'w') as f:
-            json.dump(sorted_outputs, f, indent=2, ensure_ascii=False)
-        print(f"Saved generated programs to {output_file}")
-
-
-def parse_args():
-    """Parse command-line arguments."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset_name', default='HOVER', type=str)
-    parser.add_argument('--data_path', type=str, required=True)
-    parser.add_argument('--num_eval_samples', default=-1, type=int)
-    parser.add_argument('--num_programs_per_example', default=1, type=int)
-    parser.add_argument('--save_path', default='./results/programs', type=str)
-    parser.add_argument('--model_name', type=str, default='codellama/CodeLlama-13b-hf')
-    parser.add_argument('--max_new_tokens', type=int, default=1024)
-    return parser.parse_args()
-
-
-if __name__ == "__main__":
-    args = parse_args()
-    generator = ReasoningProgramGenerator(args)
-    generator.batch_generate_programs()
+# 运行主程序
+process_file(input_file_path, output_file_path, dataset_name="HOVER")
+print(f"Results saved to {output_file_path}")
