@@ -1,54 +1,55 @@
 HOVER_PROGRAM_FC = '''Generate a python-like program that describes the reasoning steps required to verify the claim step-by-step. You can call three functions in the program: 1. Question() to answer a question; 2. Verify() to verify a simple claim; 3. Predict() to predict the veracity label. Several examples are given as follows.
-
+# Example 1
 # The claim is that Howard University Hospital and Providence Hospital are both located in Washington, D.C.
 def program():
     fact_1 = Verify("Howard University Hospital is located in Washington, D.C.")
     fact_2 = Verify("Providence Hospital is located in Washington, D.C.")
     label = Predict(fact_1 and fact_2)
-
+# Example 2
 # The claim is that WWE Super Tuesday took place at an arena that currently goes by the name TD Garden.
 def program():
     answer_1 = Question("Which arena the WWE Super Tuesday took place?")
     fact_1 = Verify(f"{answer_1} currently goes by the name TD Garden.")
     label = Predict(fact_1)
-
+# Example 3
 # The claim is that Talking Heads, an American rock band that was "one of the most critically acclaimed bands of the 80's" is featured in KSPN's AAA format.
 def program():
     fact_1 = Verify("Talking Heads is an American rock band that was 'one of the most critically acclaimed bands of the 80's'.")
     fact_2 = Verify("Talking Heads is featured in KSPN's AAA format.")
     label = Predict(fact_1 and fact_2)
-
+# Example 4
 # The claim is that An IndyCar race driver drove a Formula 1 car designed by Peter McCool during the 2007 Formula One season.
 def program():
     answer_1 = Question("Which Formula 1 car was designed by Peter McCool during the 2007 Formula One season?")
     fact_1 = Verify(f"An IndyCar race driver drove the car {answer_1}.")
     label = Predict(fact_1)
-
+# Example 5
 # The claim is that Gina Bramhill was born in a village. The 2011 population of the area that includes this village was 167,446.
 def program():
     answer_1 = Question("Which village was Gina Bramhill born in?")
     fact_1 = Verify(f"The 2011 population of the area that includes {answer_1} was 167,446.")
     label = Predict(fact_1)
-
+# Example 6
 # The claim is that Don Ashley Turlington graduated from Saint Joseph's College, a private Catholic liberal arts college in Standish.
 def program():
     fact_1 = Verify("Saint Joseph's College is a private Catholic liberal arts college is located in Standish.")
     fact_2 = Verify(f"Don Ashley Turlington graduated from Saint Joseph's College.")
     label = Predict(fact_1 and fact_2)
-
+# Example 7
 # The claim is that Gael and Fitness are not published in the same country.
 def program():
     answer_1 = Question("Which country was Gael published in?")
     answer_2 = Question("Which country was Fitness published in?")
     fact_1 = Verify(f"{answer_1} and {answer_2} are not the same country.")
     label = Predict(fact_1)
-
+# Example 8
 # The claim is that Blackstar is the name of the album released by David Bowie that was recorded in secret.
 def program():
     fact_1 = Verify("David Bowie released an album called Blackstar.")
     fact_2 = Verify("David Bowie recorded an album in secret.")
     label = Predict(fact_1 and fact_2)
-
+    
+# The next is a question.Please generate a python-like program:
 # The claim is that [[CLAIM]]
 def program():'''
 
