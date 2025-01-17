@@ -1,4 +1,16 @@
-HOVER_PROGRAM_FC = '''Generate a python-like program that describes the reasoning steps required to verify the claim step-by-step. You can call three functions in the program: 1. Question() to answer a question; 2. Verify() to verify a simple claim; 3. Predict() to predict the veracity label. Several examples are given as follows.
+HOVER_PROGRAM_FC = '''Generate a Python-like program that describes the reasoning steps required to verify the claim step-by-step. 
+
+You can use three functions in the program:
+1. `Question()`: To answer a specific question.
+2. `Verify()`: To verify a single fact or claim.
+3. `Predict()`: To predict the veracity label based on verified facts.
+
+**Rules**:
+- Each program must only answer the specific claim provided.
+- Avoid any repeated or redundant lines in the output.
+- The program must be concise and contain only the necessary steps to verify the claim.
+
+**Examples**:
 # Example 1
 # The claim is that Howard University Hospital and Providence Hospital are both located in Washington, D.C.
 def program():
@@ -49,7 +61,7 @@ def program():
     fact_2 = Verify("David Bowie recorded an album in secret.")
     label = Predict(fact_1 and fact_2)
     
-# The next is a question.Please generate a python-like program:
+# New Question:
 # The claim is that [[CLAIM]]
 def program():'''
 
