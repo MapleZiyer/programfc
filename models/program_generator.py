@@ -42,7 +42,7 @@ class ReasoningProgramGenerator:
         self.num_programs_per_example = args.num_programs_per_example
 
         self.model = CodeLlamaModel(args.model_name, args.max_new_tokens)
-        self.prompt_loader = PromptLoader()
+        self.prompt_loader = Prompt_Loader()
         self.result_dict = {}
 
     def update_results(self, idx, generated_text):
