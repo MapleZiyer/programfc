@@ -13,8 +13,8 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
 
 # 数据文件路径
-input_file_path = "input_data.jsonl"  # 替换为你的输入文件路径
-output_file_path = "output_results.json"  # 替换为你的输出文件路径
+input_file_path = "./datasets/HOVER/claims/gold_negate_8-shot_2-retrieved-evidence_train_gpt-3.5-turbo.jsonl"  # 替换为你的输入文件路径
+output_file_path = "./results/programs/output_results.json"  # 替换为你的输出文件路径
 
 def process_file(input_file, output_file, dataset_name="HOVER"):
     """
