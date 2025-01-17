@@ -63,7 +63,10 @@ def program():
     
 # New Question:
 # The claim is that [[CLAIM]]
-def program():'''
+def program():
+
+#Stop after replying last question
+'''
 
 FEVEROUS_PROGRAM_FC = '''Generate a python-like program that describes the reasoning steps required to verify the claim step-by-step. You can call three functions in the program: 1. Question() to answer a question; 2. Verify() to verify a simple claim; 3. Predict() to predict the veracity label. Several examples are given as follows.
 
