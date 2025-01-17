@@ -43,7 +43,7 @@ def process_file(input_file, output_file, dataset_name="HOVER"):
                 # 模型生成
                 outputs = model.generate(
                     **inputs,
-                    max_length=512,
+                    max_length=2048,
                     temperature=0.7,
                     top_p=0.9,
                     do_sample=True
