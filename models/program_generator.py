@@ -49,7 +49,7 @@ def process_file(input_file, output_file, dataset_name="HOVER"):
                 inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=3000).to(model.device)
 
                 print("Input:")
-                print(inputs)
+                print(prompt)
 
                 # 模型生成
                 outputs = model.generate(
