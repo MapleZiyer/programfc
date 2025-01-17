@@ -16,6 +16,7 @@ model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
 input_file_path = "./datasets/HOVER/claims/gold_negate_8-shot_2-retrieved-evidence_train_gpt-3.5-turbo.jsonl"  # 替换为你的输入文件路径
 output_file_path = "./results/programs/output_results.json"  # 替换为你的输出文件路径
 
+
 def extract_first_program(data):
     """
     提取第一个 'New Question:' 后面紧跟的 'def program():' 块内容。
@@ -85,7 +86,7 @@ def process_file(input_file, output_file, dataset_name="HOVER"):
 
                 # 解码生成结果
                 generated_code = tokenizer.decode(outputs[0], skip_special_tokens=True)
-                generated_code = extract_latest_program(generated_code)
+                generated_code = extract_first_program(generated_code)
                 print("Output:")
                 print(generated_code)
 
