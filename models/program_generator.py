@@ -3,8 +3,9 @@ import os
 import json
 from tqdm import tqdm
 import torch
-from prompts import Prompt_Loader
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from prompts import Prompt_Loader
+
 
 class CodeLlamaModel:
     def __init__(self, model_name, max_new_tokens):
@@ -32,6 +33,7 @@ class CodeLlamaModel:
     def batch_generate(self, prompts, temperature=0.7):
         return [self.generate(prompt, temperature) for prompt in prompts]
 
+
 class ReasoningProgramGenerator:
     def __init__(self, args):
         self.args = args
@@ -45,10 +47,12 @@ class ReasoningProgramGenerator:
         self.result_dict = {}
 
     def update_results(self, idx, generated_text):
-        program_list = [line.strip() for line in generated_text.split('\n')]
+        """Update the result dictionary with the generated text."""
+        program_list = [line.strip() for line in generated_text.split('\n') if line.strip()]
         self.result_dict[idx]['predicted_programs'].append(program_list)
 
     def load_dataset(self):
+        """Load dataset from the specified path."""
         dataset_file = os.path.join(self.data_path, self.dataset_name, 'claims',
                                     'gold_negate_8-shot_2-retrieved-evidence_train_gpt-3.5-turbo.jsonl')
         with open(dataset_file, 'r') as f:
@@ -60,6 +64,7 @@ class ReasoningProgramGenerator:
         return raw_dataset
 
     def batch_generate_programs(self, batch_size=10):
+        """Generate reasoning programs in batches."""
         os.makedirs(self.save_path, exist_ok=True)
 
         raw_dataset = self.load_dataset()
@@ -79,7 +84,7 @@ class ReasoningProgramGenerator:
         for iteration in range(self.num_programs_per_example):
             print(f"Generating programs for iteration {iteration + 1}...")
             for chunk in tqdm(dataset_chunks):
-                full_prompts = [self.prompt_loader.construct_prompt(example['mutated'], self.dataset_name) for example in chunk]
+                full_prompts = [self.prompt_loader.prompt_construction(example['mutated'], self.dataset_name) for example in chunk]
                 try:
                     batch_outputs = self.model.batch_generate(full_prompts, temperature)
                     for example, output in zip(chunk, batch_outputs):
@@ -94,7 +99,9 @@ class ReasoningProgramGenerator:
             json.dump(sorted_outputs, f, indent=2, ensure_ascii=False)
         print(f"Saved generated programs to {output_file}")
 
+
 def parse_args():
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_name', default='HOVER', type=str)
     parser.add_argument('--data_path', type=str, required=True)
@@ -104,6 +111,7 @@ def parse_args():
     parser.add_argument('--model_name', type=str, default='codellama/CodeLlama-13b-hf')
     parser.add_argument('--max_new_tokens', type=int, default=1024)
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = parse_args()
