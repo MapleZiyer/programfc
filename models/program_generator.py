@@ -100,42 +100,37 @@ def load_model(model_name, local_rank, args):
     try:
         print(f"Loading model and tokenizer on GPU {local_rank} (local_rank {local_rank})...")
         
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        # 清理GPU内存
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.reset_peak_memory_stats()
         
-        # 配置量化参数
-        quantization_config = None
-        if args.use_4bit:
-            quantization_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.float16,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4"
-            )
-        elif args.use_8bit:
-            quantization_config = BitsAndBytesConfig(
-                load_in_8bit=True
+        # 使用无梯度上下文来节省内存
+        with torch.no_grad():
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            
+            # 加载模型
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                device_map={"": local_rank},  # 使用local_rank作为GPU索引
+                torch_dtype=torch.float16,    # 使用半精度
+                low_cpu_mem_usage=True,       # 降低CPU内存使用
             )
             
-        # 设置torch的内存分配器
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()  # 清空GPU缓存
-        
-        # 加载模型
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            device_map={"": local_rank},  # 使用local_rank作为GPU索引
-            torch_dtype=torch.float16,  # 使用半精度
-            quantization_config=quantization_config,
-            low_cpu_mem_usage=True,
-        )
-        
-        # 启用梯度检查点
-        if hasattr(model, "gradient_checkpointing_enable"):
-            model.gradient_checkpointing_enable()
-        
-        if torch.cuda.is_available():
-            model = DDP(model, device_ids=[local_rank])
-            print(f"Model loaded successfully on GPU {local_rank}")
+            # 启用梯度检查点以节省内存
+            if hasattr(model, "gradient_checkpointing_enable"):
+                model.gradient_checkpointing_enable()
+            
+            # 使用DDP包装模型
+            if torch.cuda.is_available():
+                # 设置find_unused_parameters=False来减少内存使用
+                model = DDP(model, device_ids=[local_rank], find_unused_parameters=False)
+                print(f"Model loaded successfully on GPU {local_rank}")
+                
+                # 打印内存使用情况
+                allocated = torch.cuda.memory_allocated(local_rank) / (1024 * 1024 * 1024)
+                reserved = torch.cuda.memory_reserved(local_rank) / (1024 * 1024 * 1024)
+                print(f"GPU {local_rank} Memory: Allocated: {allocated:.2f}GB, Reserved: {reserved:.2f}GB")
         
         return tokenizer, model
     except Exception as e:
@@ -186,6 +181,10 @@ def process_file(args, rank, world_size, local_rank):
         start_idx = rank * chunk_size
         end_idx = start_idx + chunk_size if rank != world_size - 1 else len(data)
         local_data = data[start_idx:end_idx]
+        
+        # 释放原始数据的内存
+        del data
+        torch.cuda.empty_cache()
 
         # 加载模型
         tokenizer, model = load_model(args.model_name, local_rank, args)
@@ -204,14 +203,15 @@ def process_file(args, rank, world_size, local_rank):
                 # 构造Prompt
                 prompt = prompt_loader.prompt_construction(claim, args.dataset_name)
 
-                # Tokenize输入
-                inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1500)
-                inputs = {k: v.to(f"cuda:{local_rank}") for k, v in inputs.items()}  # 使用local_rank作为GPU索引
+                # 使用上下文管理器来自动清理内存
+                with torch.cuda.amp.autocast(), torch.no_grad():
+                    # Tokenize输入
+                    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1500)
+                    inputs = {k: v.to(f"cuda:{local_rank}") for k, v in inputs.items()}
 
-                # 生成多个程序
-                predicted_programs = []
-                for _ in range(args.num_programs_per_example):
-                    with torch.cuda.amp.autocast():  # 使用自动混合精度
+                    # 生成多个程序
+                    predicted_programs = []
+                    for _ in range(args.num_programs_per_example):
                         outputs = model.module.generate(
                             **inputs,
                             max_length=1500,
@@ -220,18 +220,26 @@ def process_file(args, rank, world_size, local_rank):
                             do_sample=True,
                             num_return_sequences=1
                         )
-                    generated_code = tokenizer.decode(outputs[0], skip_special_tokens=True)
-                    program = extract_first_program(generated_code)
-                    if program:
-                        predicted_programs.append(program)
+                        generated_code = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                        program = extract_first_program(generated_code)
+                        if program:
+                            predicted_programs.append(program)
+                        
+                        # 清理生成的输出
+                        del outputs
+                        torch.cuda.empty_cache()
 
-                # 保存结果
-                results.append({
-                    "idx": global_idx,
-                    "claim": claim,
-                    "gold": gold,
-                    "predicted_programs": predicted_programs
-                })
+                    # 保存结果
+                    results.append({
+                        "idx": global_idx,
+                        "claim": claim,
+                        "gold": gold,
+                        "predicted_programs": predicted_programs
+                    })
+
+                    # 清理本次迭代的内存
+                    del inputs
+                    torch.cuda.empty_cache()
 
             except Exception as e:
                 print(f"Error processing item {global_idx}: {e}")
