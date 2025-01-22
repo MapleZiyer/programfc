@@ -1,5 +1,5 @@
 import json
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from prompts import Prompt_Loader
 from tqdm import tqdm
 import torch.distributed as dist
@@ -34,6 +34,10 @@ def parse_args():
                       help='分布式训练超时时间(秒)')
     parser.add_argument('--local_rank', type=int, default=0,
                       help='本地进程序号')
+    parser.add_argument('--use_4bit', action='store_true',
+                      help='是否使用4-bit量化')
+    parser.add_argument('--use_8bit', action='store_true',
+                      help='是否使用8-bit量化')
     return parser.parse_args()
 
 # 加载Prompt构造器
@@ -76,26 +80,60 @@ def setup_distributed(args):
         )
 
         # 设置当前设备
-        torch.cuda.set_device(local_rank)
+        if torch.cuda.is_available():
+            # 确保每个进程使用不同的GPU
+            device = local_rank % torch.cuda.device_count()
+            torch.cuda.set_device(device)
+            print(f"Process {rank} using GPU: {device}")
         
         return rank, world_size, local_rank
     except Exception as e:
         print(f"初始化分布式环境时出错: {str(e)}")
         raise e
 
-def load_model(model_name, local_rank):
+def load_model(model_name, local_rank, args):
     """加载模型和tokenizer"""
-    print(f"Loading model and tokenizer on local_rank {local_rank}...")
     try:
+        # 确保使用正确的GPU
+        device = local_rank % torch.cuda.device_count()
+        print(f"Loading model and tokenizer on GPU {device} (local_rank {local_rank})...")
+        
         tokenizer = AutoTokenizer.from_pretrained(model_name)
+        
+        # 配置量化参数
+        quantization_config = None
+        if args.use_4bit:
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4"
+            )
+        elif args.use_8bit:
+            quantization_config = BitsAndBytesConfig(
+                load_in_8bit=True
+            )
+            
+        # 设置torch的内存分配器
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()  # 清空GPU缓存
+        
+        # 加载模型
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            device_map={"": local_rank} if torch.cuda.is_available() else "auto",
-            torch_dtype=torch.float16  # 使用半精度来节省显存
+            device_map={"": device} if torch.cuda.is_available() else "auto",
+            torch_dtype=torch.float16,  # 使用半精度
+            quantization_config=quantization_config,
+            low_cpu_mem_usage=True,
         )
         
+        # 启用梯度检查点
+        if hasattr(model, "gradient_checkpointing_enable"):
+            model.gradient_checkpointing_enable()
+        
         if torch.cuda.is_available():
-            model = DDP(model, device_ids=[local_rank])
+            model = DDP(model, device_ids=[device])
+            print(f"Model loaded on GPU {device}")
         
         return tokenizer, model
     except Exception as e:
@@ -148,7 +186,7 @@ def process_file(args, rank, world_size, local_rank):
         local_data = data[start_idx:end_idx]
 
         # 加载模型
-        tokenizer, model = load_model(args.model_name, local_rank)
+        tokenizer, model = load_model(args.model_name, local_rank, args)
 
         # 处理分配的数据
         for idx, item in enumerate(tqdm(local_data, desc=f"Processing on rank {rank}")):
@@ -167,7 +205,7 @@ def process_file(args, rank, world_size, local_rank):
                 # Tokenize输入
                 inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1500)
                 if torch.cuda.is_available():
-                    inputs = {k: v.cuda(local_rank) for k, v in inputs.items()}
+                    inputs = {k: v.cuda(device) for k, v in inputs.items()}
 
                 # 生成多个程序
                 predicted_programs = []
