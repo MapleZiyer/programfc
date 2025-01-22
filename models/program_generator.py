@@ -105,27 +105,50 @@ def load_model(model_name, local_rank, args):
             torch.cuda.empty_cache()
             torch.cuda.reset_peak_memory_stats()
         
+        # 配置内存优化选项
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
+        
         # 使用无梯度上下文来节省内存
         with torch.no_grad():
             tokenizer = AutoTokenizer.from_pretrained(model_name)
             
+            # 配置模型加载选项
+            model_kwargs = {
+                "device_map": {"": local_rank},
+                "torch_dtype": torch.float16,
+                "low_cpu_mem_usage": True,
+            }
+            
+            # 如果使用8位量化
+            if hasattr(args, 'use_8bit') and args.use_8bit:
+                model_kwargs.update({
+                    "load_in_8bit": True,
+                    "quantization_config": BitsAndBytesConfig(
+                        load_in_8bit=True,
+                        llm_int8_threshold=6.0
+                    )
+                })
+            
             # 加载模型
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
-                device_map={"": local_rank},  # 使用local_rank作为GPU索引
-                torch_dtype=torch.float16,    # 使用半精度
-                low_cpu_mem_usage=True,       # 降低CPU内存使用
+                **model_kwargs
             )
             
             # 启用梯度检查点以节省内存
             if hasattr(model, "gradient_checkpointing_enable"):
                 model.gradient_checkpointing_enable()
             
-            # 使用DDP包装模型
+            # 使用DDP包装模型,禁用不必要的参数同步
             if torch.cuda.is_available():
-                # 设置find_unused_parameters=False来减少内存使用
-                model = DDP(model, device_ids=[local_rank], find_unused_parameters=False)
-                print(f"Model loaded successfully on GPU {local_rank}")
+                model = DDP(
+                    model, 
+                    device_ids=[local_rank],
+                    output_device=local_rank,
+                    find_unused_parameters=False,
+                    static_graph=True  # 如果模型结构固定,启用静态图优化
+                )
                 
                 # 打印内存使用情况
                 allocated = torch.cuda.memory_allocated(local_rank) / (1024 * 1024 * 1024)
