@@ -106,16 +106,31 @@ def load_model(model_name, local_rank, args):
         
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         
+        # 配置量化参数
+        quantization_config = BitsAndBytesConfig(
+            load_in_8bit=True,
+            llm_int8_threshold=6.0,
+            llm_int8_has_fp16_weight=True,
+            bnb_8bit_compute_dtype=torch.float16
+        )
+        
         # 加载模型
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             device_map=f"cuda:{local_rank}",  # 直接指定使用对应的GPU
             torch_dtype=torch.float16,    # 使用半精度
-            low_cpu_mem_usage=True        # 降低CPU内存使用
+            low_cpu_mem_usage=True,       # 降低CPU内存使用
+            quantization_config=quantization_config,  # 使用8位量化
+            offload_folder="offload",     # 设置权重卸载目录
+            offload_state_dict=True       # 启用权重卸载到CPU
         )
         
         # 使用DDP包装模型
         if torch.cuda.is_available():
+            # 启用梯度检查点以节省内存
+            if hasattr(model, "gradient_checkpointing_enable"):
+                model.gradient_checkpointing_enable()
+                
             model = DDP(model, device_ids=[local_rank], find_unused_parameters=False)
             print(f"Model loaded successfully on GPU {local_rank}")
             
