@@ -109,20 +109,20 @@ def load_model(model_name, local_rank, args):
         # 加载模型
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            device_map="auto",  # 自动决定模型各层的设备分配
+            device_map=f"cuda:{local_rank}",  # 直接指定使用对应的GPU
             torch_dtype=torch.float16,    # 使用半精度
-            low_cpu_mem_usage=True,       # 降低CPU内存使用
-            max_memory={i: f"{23}GiB" for i in range(torch.cuda.device_count())},  # 限制每个GPU的最大内存使用
-            offload_folder="offload"  # 设置模型权重卸载目录
+            low_cpu_mem_usage=True        # 降低CPU内存使用
         )
         
-        # 在分布式环境中,我们仍然需要DDP,但只包装当前GPU上的层
-        if torch.cuda.is_available() and dist.is_initialized():
-            # 获取当前GPU上的参数
-            local_params = [p for p in model.parameters() if p.device.index == local_rank]
-            if local_params:  # 只有当有参数在当前GPU上时才使用DDP
-                model = DDP(model, device_ids=[local_rank], find_unused_parameters=True)
-                print(f"Model parallel enabled, using GPU {local_rank} for part of the model")
+        # 使用DDP包装模型
+        if torch.cuda.is_available():
+            model = DDP(model, device_ids=[local_rank], find_unused_parameters=False)
+            print(f"Model loaded successfully on GPU {local_rank}")
+            
+            # 打印当前GPU的内存使用情况
+            allocated = torch.cuda.memory_allocated(local_rank) / (1024 * 1024 * 1024)
+            reserved = torch.cuda.memory_reserved(local_rank) / (1024 * 1024 * 1024)
+            print(f"GPU {local_rank} Memory: Allocated: {allocated:.2f}GB, Reserved: {reserved:.2f}GB")
         
         return tokenizer, model
     except Exception as e:
