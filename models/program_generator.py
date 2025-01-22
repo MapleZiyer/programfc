@@ -9,6 +9,7 @@ import argparse
 import socket
 from pathlib import Path
 from torch.nn.parallel import DistributedDataParallel as DDP
+from datetime import timedelta
 
 def parse_args():
     """解析命令行参数"""
@@ -71,7 +72,7 @@ def setup_distributed(args):
             init_method=f'tcp://{args.master_addr}:{args.master_port}',
             world_size=world_size,
             rank=rank,
-            timeout=torch.timedelta(seconds=args.timeout)
+            timeout=timedelta(seconds=args.timeout)
         )
 
         # 设置当前设备
