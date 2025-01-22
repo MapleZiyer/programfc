@@ -54,14 +54,19 @@ def find_free_port():
 def setup_distributed(args):
     """设置分布式训练环境"""
     try:
+        # 获取本地进程的rank
+        if 'LOCAL_RANK' in os.environ:
+            local_rank = int(os.environ['LOCAL_RANK'])
+        else:
+            local_rank = args.local_rank
+
+        # 获取全局rank和world_size
         if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
             rank = int(os.environ['RANK'])
             world_size = int(os.environ['WORLD_SIZE'])
-            local_rank = args.local_rank
         else:
             rank = 0
             world_size = 1
-            local_rank = 0
 
         # 设置环境变量
         os.environ['MASTER_ADDR'] = args.master_addr
@@ -69,6 +74,12 @@ def setup_distributed(args):
         os.environ['WORLD_SIZE'] = str(world_size)
         os.environ['RANK'] = str(rank)
         os.environ['LOCAL_RANK'] = str(local_rank)
+
+        # 设置当前设备
+        if torch.cuda.is_available():
+            # 直接使用local_rank作为GPU索引
+            torch.cuda.set_device(local_rank)
+            print(f"Process {rank} using GPU: {local_rank}")
 
         # 初始化进程组
         dist.init_process_group(
@@ -78,13 +89,6 @@ def setup_distributed(args):
             rank=rank,
             timeout=timedelta(seconds=args.timeout)
         )
-
-        # 设置当前设备
-        if torch.cuda.is_available():
-            # 确保每个进程使用不同的GPU
-            device = local_rank % torch.cuda.device_count()
-            torch.cuda.set_device(device)
-            print(f"Process {rank} using GPU: {device}")
         
         return rank, world_size, local_rank
     except Exception as e:
@@ -94,12 +98,7 @@ def setup_distributed(args):
 def load_model(model_name, local_rank, args):
     """加载模型和tokenizer"""
     try:
-        # 确保使用正确的GPU
-        device = local_rank % torch.cuda.device_count()
-        print(f"Loading model and tokenizer on GPU {device} (local_rank {local_rank})...")
-        
-        # 设置当前进程使用的GPU
-        torch.cuda.set_device(device)
+        print(f"Loading model and tokenizer on GPU {local_rank} (local_rank {local_rank})...")
         
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         
@@ -124,7 +123,7 @@ def load_model(model_name, local_rank, args):
         # 加载模型
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            device_map={"": device},  # 确保模型加载到正确的GPU
+            device_map={"": local_rank},  # 使用local_rank作为GPU索引
             torch_dtype=torch.float16,  # 使用半精度
             quantization_config=quantization_config,
             low_cpu_mem_usage=True,
@@ -135,8 +134,8 @@ def load_model(model_name, local_rank, args):
             model.gradient_checkpointing_enable()
         
         if torch.cuda.is_available():
-            model = DDP(model, device_ids=[device])
-            print(f"Model loaded successfully on GPU {device}")
+            model = DDP(model, device_ids=[local_rank])
+            print(f"Model loaded successfully on GPU {local_rank}")
         
         return tokenizer, model
     except Exception as e:
@@ -163,10 +162,6 @@ def extract_first_program(data):
 def process_file(args, rank, world_size, local_rank):
     """处理文件的分布式版本"""
     try:
-        # 设置当前进程使用的GPU
-        device = local_rank % torch.cuda.device_count()
-        torch.cuda.set_device(device)
-        
         results = []
         
         # 构建输入文件路径
@@ -211,7 +206,7 @@ def process_file(args, rank, world_size, local_rank):
 
                 # Tokenize输入
                 inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1500)
-                inputs = {k: v.to(device) for k, v in inputs.items()}  # 确保输入数据在正确的GPU上
+                inputs = {k: v.to(f"cuda:{local_rank}") for k, v in inputs.items()}  # 使用local_rank作为GPU索引
 
                 # 生成多个程序
                 predicted_programs = []
