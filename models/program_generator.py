@@ -98,6 +98,9 @@ def load_model(model_name, local_rank, args):
         device = local_rank % torch.cuda.device_count()
         print(f"Loading model and tokenizer on GPU {device} (local_rank {local_rank})...")
         
+        # 设置当前进程使用的GPU
+        torch.cuda.set_device(device)
+        
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         
         # 配置量化参数
@@ -121,7 +124,7 @@ def load_model(model_name, local_rank, args):
         # 加载模型
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            device_map={"": device} if torch.cuda.is_available() else "auto",
+            device_map={"": device},  # 确保模型加载到正确的GPU
             torch_dtype=torch.float16,  # 使用半精度
             quantization_config=quantization_config,
             low_cpu_mem_usage=True,
@@ -133,7 +136,7 @@ def load_model(model_name, local_rank, args):
         
         if torch.cuda.is_available():
             model = DDP(model, device_ids=[device])
-            print(f"Model loaded on GPU {device}")
+            print(f"Model loaded successfully on GPU {device}")
         
         return tokenizer, model
     except Exception as e:
@@ -160,6 +163,10 @@ def extract_first_program(data):
 def process_file(args, rank, world_size, local_rank):
     """处理文件的分布式版本"""
     try:
+        # 设置当前进程使用的GPU
+        device = local_rank % torch.cuda.device_count()
+        torch.cuda.set_device(device)
+        
         results = []
         
         # 构建输入文件路径
@@ -204,8 +211,7 @@ def process_file(args, rank, world_size, local_rank):
 
                 # Tokenize输入
                 inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1500)
-                if torch.cuda.is_available():
-                    inputs = {k: v.cuda(device) for k, v in inputs.items()}
+                inputs = {k: v.to(device) for k, v in inputs.items()}  # 确保输入数据在正确的GPU上
 
                 # 生成多个程序
                 predicted_programs = []
@@ -234,6 +240,7 @@ def process_file(args, rank, world_size, local_rank):
 
             except Exception as e:
                 print(f"Error processing item {global_idx}: {e}")
+                continue
 
         # 收集所有进程的结果
         if world_size > 1:
@@ -261,6 +268,10 @@ def main():
     try:
         # 设置分布式环境
         rank, world_size, local_rank = setup_distributed(args)
+        
+        # 设置当前进程使用的GPU
+        device = local_rank % torch.cuda.device_count()
+        torch.cuda.set_device(device)
         
         # 设置随机种子
         torch.manual_seed(42 + rank)
