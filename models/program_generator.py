@@ -107,23 +107,42 @@ def load_model(model_name, local_rank, args):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         
         # 配置量化参数
-        quantization_config = BitsAndBytesConfig(
-            load_in_8bit=True,
-            llm_int8_threshold=6.0,
-            llm_int8_has_fp16_weight=True,
-            bnb_8bit_compute_dtype=torch.float16
-        )
+        if args.use_8bit:
+            quantization_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+                llm_int8_threshold=6.0,
+                llm_int8_has_fp16_weight=True
+            )
+        else:
+            quantization_config = None
         
         # 加载模型
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            device_map=f"cuda:{local_rank}",  # 直接指定使用对应的GPU
-            torch_dtype=torch.float16,    # 使用半精度
-            low_cpu_mem_usage=True,       # 降低CPU内存使用
-            quantization_config=quantization_config,  # 使用8位量化
-            offload_folder="offload",     # 设置权重卸载目录
-            offload_state_dict=True       # 启用权重卸载到CPU
-        )
+        model_kwargs = {
+            "device_map": f"cuda:{local_rank}",
+            "torch_dtype": torch.float16,
+            "low_cpu_mem_usage": True
+        }
+        
+        if quantization_config is not None:
+            model_kwargs["quantization_config"] = quantization_config
+            
+        # 添加额外的内存优化选项
+        if args.use_8bit:
+            model_kwargs.update({
+                "offload_folder": "offload",
+                "offload_state_dict": True
+            })
+            
+        # 清理GPU内存并重置统计信息
+        torch.cuda.empty_cache()
+        torch.cuda.reset_peak_memory_stats()
+        
+        # 加载模型
+        with torch.no_grad():
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                **model_kwargs
+            )
         
         # 使用DDP包装模型
         if torch.cuda.is_available():
