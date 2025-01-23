@@ -47,26 +47,34 @@ def process_file(input_file, output_file, dataset_name="HOVER"):
     :param dataset_name: 数据集名称 (HOVER 或 FEVEROUS)
     """
     results = []
+    success_count = 0
+    error_count = 0
+    empty_count = 0
+
+    print(f"Model loaded on device: {model.device}")
 
     # 逐行处理输入文件
     with open(input_file, "r", encoding="utf-8") as infile:
         lines = infile.readlines()
+        total_samples = len(lines)
 
         # 使用tqdm显示进度条
-        for line in tqdm(lines, desc="Processing claims"):
+        for idx, line in enumerate(tqdm(lines, desc="Processing claims")):
             try:
                 # 解析JSON数据
                 data = json.loads(line)
-                claim = data.get("mutated", "")
+                mutated = data.get("mutated", "")
+                original = data.get("original", "")
+                gold_evidence = data.get("gold_evidence", "")
 
-                # 检查claim是否为空
-                if not claim:
-                    print("Warning: Empty claim detected, skipping...")
+                # 检查mutated是否为空
+                if not mutated:
+                    print("Warning: Empty mutated claim detected, skipping...")
+                    empty_count += 1
                     continue
 
                 # 构造Prompt
-                prompt = prompt_loader.prompt_construction(claim, dataset_name)
-                print(f"Model loaded on device: {model.device}")
+                prompt = prompt_loader.prompt_construction(mutated, dataset_name)
 
                 # Tokenize输入
                 inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1500).to(model.device)
@@ -92,18 +100,32 @@ def process_file(input_file, output_file, dataset_name="HOVER"):
 
                 # 保存结果
                 results.append({
-                    "claim": claim,
-                    "generated_code": generated_code
+                    "idx": idx,
+                    "mutated": mutated,
+                    "original": original,
+                    "gold_evidence": gold_evidence,
+                    "predicted_programs": [generated_code] if generated_code else []
                 })
+                success_count += 1
 
             except json.JSONDecodeError as e:
                 print(f"Error decoding JSON: {e}, skipping line...")
+                error_count += 1
             except Exception as e:
                 print(f"Error processing line: {e}")
+                error_count += 1
 
     # 保存结果到输出文件
     with open(output_file, "w", encoding="utf-8") as outfile:
-        json.dump(results, outfile, ensure_ascii=False, indent=4)
+        json.dump(results, outfile, ensure_ascii=False, indent=2)
+
+    # 打印统计信息
+    print("\n处理统计:")
+    print(f"总样本数: {total_samples}")
+    print(f"成功处理: {success_count}")
+    print(f"处理失败: {error_count}")
+    print(f"空样本数: {empty_count}")
+    print(f"成功率: {(success_count/total_samples)*100:.2f}%")
 
 # 主程序入口
 if __name__ == "__main__":
